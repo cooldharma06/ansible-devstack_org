@@ -1,0 +1,110 @@
+---
+- hosts: opens
+#  remote_user: root
+  vars:
+    # created with 
+    # import crypt,getpass; print crypt.crypt(getpass.getpass(),crypt.mksalt((crypt.METHOD_SHA512)))
+    password : $6$v3/mo.h5CbbuybsE$1uhIVFu3vVOoPg/pkP5.ZJEWXC/sXts9FtLeNzju5HyofRJbQUPIFBZxvvuLYWOOhTg5fW/nzXqEbq4BX59bi/
+
+# use to gather fact and to configure interface and ip
+  gather_facts: no
+
+  tasks:
+   - name: ping test
+     ping:
+
+   - name: create stack user and give sudo permission
+     user: name=stack state=present groups="sudo" password={{password}} 
+     become: yes
+  
+
+
+#  - name: giving sudo permission to the stack user - copying
+#    copy: src=/etc/sudoers dest=/etc/sudoers.tmp remote_src=true
+
+#  - name: adding the stack user to sudoers file
+#    lineinfile: "dest=/etc/sudoers.tmp state=present regexp='^%stack' line='%stack ALL=(ALL) NOPASSWD: ALL'"
+
+#  - name: overwriting the sudoers file
+#    shell: cp -f /etc/sudoers.tmp /etc/sudoers
+
+   - name: Allow 'stack' group to have passwordless sudo
+     become: yes
+     lineinfile:
+       dest: /etc/sudoers
+       state: present
+       regexp: '^%stack'
+       line: '%stack ALL=(ALL) NOPASSWD: ALL' 
+
+   - name: install git
+     apt: name=git state=installed update_cache=yes
+     become: yes
+
+   - name: get devstack from github
+     become: yes
+     become_user: stack
+     git: repo=https://github.com/openstack-dev/devstack.git dest=/home/stack/Documents/devstack      
+#     environment:
+ #      http_proxy: http://proxy.esl.cisco.com:8080
+ #      https_proxy: http://proxy.esl.cisco.com:8080
+
+
+
+   
+# copy the local configuration from local machine to remote machine
+#   - name: clone devstack configuration from github
+#     become: yes
+#     become_user: stack
+#     force: yes
+#     copy: src=./local.conf dest=/home/stack/Documents/devstack/
+
+
+# to get the configuration from the github link
+   - name: get the config (local.conf) file from github
+     become: yes
+     become_user: stack 
+ 
+     get_url: 
+       url: https://raw.githubusercontent.com/cooldharma06/ansible-devstack/master/local.conf 
+       dest: /home/stack/Documents/devstack
+
+
+# replacing Host ip parameter in stackrc due to bug in devstack
+   - name: Replacing HOST_IP in stackrc file
+     become: yes
+     become_user: stack
+     replace:
+         dest: /home/stack/Documents/devstack/stackrc
+         regexp: 'HOST_IP:-'
+         replace: 'HOST_IP:-10.10.10.10'
+   
+
+# to save the file downloading copying /opt/stack from the host machine to VM
+
+#*   - name: Copying openstack components source file to vm
+#*     become: yes
+
+#*     copy:
+ #*        src: /opt/stack/ 
+  #*       dest: /opt/stack/
+  #*       owner: stack
+  #*       group: stack
+
+
+# Getting the password file from the github
+   - name: Get the localrc.password file from the guthub
+     become: yes
+     become_user: stack
+     get_url: 
+       url: https://raw.githubusercontent.com/cooldharma06/ansible-devstack/master/.localrc.password
+       dest: /home/stack/Documents/devstack
+
+#   - name: copying local.conf as localrc for installation
+#     become: yes
+#     become_user: stack
+#     command: cp /home/stack/Documents/devstack/local.conf /home/stack/Documents/devstack/localrc
+
+   - name: installing devstack
+     become: yes
+     become_user: stack
+     command: /home/stack/Documents/devstack/stack.sh
